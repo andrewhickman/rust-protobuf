@@ -1,4 +1,4 @@
-use crate::{CodedOutputStream, MessageDyn, ProtobufResult, reflect::{message::message_ref::MessageRef, types::ProtobufType}, wire_format};
+use crate::{CodedInputStream, CodedOutputStream, MessageDyn, ProtobufResult, reflect::{message::message_ref::MessageRef, types::ProtobufType}, wire_format};
 use crate::reflect::value::value_ref::ReflectValueMut;
 use crate::reflect::value::value_ref::ReflectValueRef;
 use crate::reflect::EnumDescriptor;
@@ -184,6 +184,28 @@ impl ReflectValueBox {
                 v.write_to_with_cached_sizes_dyn(os)
             },
         }
+    }
+
+    pub fn merge_from(&mut self, is: &mut CodedInputStream) -> ProtobufResult<()> {
+        match self {
+            ReflectValueBox::U32(v) => *v = is.read_uint32()?,
+            ReflectValueBox::U64(v) => *v = is.read_uint64()?,
+            ReflectValueBox::I32(v) => *v = is.read_int32()?,
+            ReflectValueBox::I64(v) => *v = is.read_int64()?,
+            ReflectValueBox::F32(v) => *v = is.read_float()?,
+            ReflectValueBox::F64(v) => *v = is.read_double()?,
+            ReflectValueBox::Bool(v) => *v = is.read_bool()?,
+            ReflectValueBox::String(v) => *v = is.read_string()?,
+            ReflectValueBox::Bytes(v) => *v = is.read_bytes()?,
+            ReflectValueBox::Enum(d, v) => *v = is.read_int32()?,
+            ReflectValueBox::Message(v) => {
+                let len = is.read_raw_varint64()?;
+                let old_limit = is.push_limit(len)?;
+                v.merge_from_dyn(is)?;
+                is.pop_limit(old_limit);
+            },
+        };
+        Ok(())
     }
 }
 

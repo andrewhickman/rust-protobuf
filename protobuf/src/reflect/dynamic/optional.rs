@@ -1,4 +1,4 @@
-use crate::{CodedOutputStream, ProtobufResult, reflect::value::value_ref::ReflectValueMut};
+use crate::{CodedInputStream, CodedOutputStream, ProtobufResult, reflect::value::value_ref::ReflectValueMut};
 use crate::reflect::ReflectValueBox;
 use crate::reflect::ReflectValueRef;
 use crate::reflect::RuntimeTypeBox;
@@ -48,5 +48,12 @@ impl DynamicOptional {
         } else {
             Ok(())
         }
+    }
+
+    pub fn merge_from(&mut self, is: &mut CodedInputStream) -> ProtobufResult<()> {
+        let mut value = self.elem.default_value_ref().to_box();
+        value.merge_from(is)?;
+        self.value = Some(value);
+        Ok(())
     }
 }

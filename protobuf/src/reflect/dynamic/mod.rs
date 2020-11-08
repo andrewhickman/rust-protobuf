@@ -65,6 +65,14 @@ impl DynamicFieldValue {
             DynamicFieldValue::Map(m) => m.write_to_with_cached_sizes(os, field_number),
         }
     }
+
+    fn merge_from(&mut self, is: &mut CodedInputStream) -> ProtobufResult<()> {
+        match self {
+            DynamicFieldValue::Singular(o) => o.merge_from(is),
+            DynamicFieldValue::Repeated(r) => r.merge_from(is),
+            DynamicFieldValue::Map(m) => m.merge_from(is),
+        }
+    }
 }
 
 impl DynamicFieldValue {
@@ -202,11 +210,25 @@ impl Message for DynamicMessage {
     }
 
     fn is_initialized(&self) -> bool {
-        unimplemented!()
+        true
     }
 
-    fn merge_from(&mut self, _is: &mut CodedInputStream) -> ProtobufResult<()> {
-        unimplemented!()
+    fn merge_from(&mut self, is: &mut CodedInputStream) -> ProtobufResult<()> {
+        self.init_fields();
+
+        'fields: while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+
+            for &mut (n, ref mut field) in self.fields.iter_mut() {
+                if field_number == n {
+                    field.merge_from(is)?;
+                    continue 'fields;
+                }
+            }
+
+            self.unknown_fields.add_value(field_number, is.read_unknown(wire_type)?);
+        }
+        Ok(())
     }
 
     fn write_to_with_cached_sizes(&self, os: &mut CodedOutputStream) -> ProtobufResult<()> {

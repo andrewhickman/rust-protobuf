@@ -54,7 +54,7 @@ impl<M: Message> MessageDyn for M {
     }
 
     fn is_initialized_dyn(&self) -> bool {
-        true
+        self.is_initialized()
     }
 
     fn get_unknown_fields_dyn(&self) -> &UnknownFields {

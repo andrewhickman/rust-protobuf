@@ -1,4 +1,4 @@
-use crate::{CodedOutputStream, ProtobufResult, reflect::repeated::ReflectRepeated, wire_format::WireType};
+use crate::{CodedInputStream, CodedOutputStream, ProtobufResult, reflect::repeated::ReflectRepeated};
 use crate::reflect::repeated::ReflectRepeatedIter;
 use crate::reflect::ReflectValueBox;
 use crate::reflect::ReflectValueRef;
@@ -60,5 +60,14 @@ impl DynamicRepeated {
         self.vec.iter().try_for_each(|v| {
             v.write_to_with_cached_sizes(os, field_number)
         })
+    }
+
+    pub fn merge_from(&mut self, is: &mut CodedInputStream) -> ProtobufResult<()> {
+        let mut value = self.elem.default_value_ref().to_box();
+        value.merge_from(is)?;
+
+        self.vec.push(value);
+
+        Ok(())
     }
 }

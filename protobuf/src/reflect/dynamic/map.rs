@@ -1,4 +1,4 @@
-use crate::{CodedOutputStream, ProtobufResult, reflect::map::ReflectMap, wire_format::WireType};
+use crate::{CodedInputStream, CodedOutputStream, ProtobufResult, reflect::map::ReflectMap, wire_format::WireType};
 use crate::reflect::map::ReflectMapIter;
 use crate::reflect::map::ReflectMapIterTrait;
 use crate::reflect::runtime_types::RuntimeType;
@@ -107,6 +107,39 @@ impl DynamicMap {
                 k.to_box().write_to_with_cached_sizes(os, 1)?;
                 v.to_box().write_to_with_cached_sizes(os, 2)
             })
+    }
+
+    pub fn merge_from(&mut self, is: &mut CodedInputStream) -> ProtobufResult<()> {
+        let len = is.read_raw_varint64()?;
+        let old_limit = is.push_limit(len)?;
+
+        let mut key = None;
+        let mut value = None;
+
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+
+            match field_number {
+                1 => {
+                    let mut keyb = self.key_type().default_value_ref().to_box();
+                    keyb.merge_from(is)?;
+                    key = Some(keyb)
+                },
+                2 => {
+                    let mut valueb = self.value_type().default_value_ref().to_box();
+                    valueb.merge_from(is)?;
+                    value = Some(valueb)
+                },
+                _ => {
+                    is.read_unknown(wire_type)?;
+                }
+            }
+        }
+
+        self.insert(key.unwrap(), value.unwrap());
+
+        is.pop_limit(old_limit);
+        Ok(())
     }
 }
 
