@@ -108,6 +108,11 @@ impl FieldDescriptor {
         self.get_proto().get_name()
     }
 
+    pub fn get_number(&self) -> u32 {
+        // TODO: slow for dynamic
+        self.get_proto().get_number() as u32
+    }
+
     /// Oneof descriptor containing this field.
     pub fn containing_oneof(&self) -> Option<OneofDescriptor> {
         let proto = self.get_proto();

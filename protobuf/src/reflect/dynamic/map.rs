@@ -1,4 +1,4 @@
-use crate::reflect::map::ReflectMap;
+use crate::{CodedOutputStream, ProtobufResult, reflect::map::ReflectMap, wire_format::WireType};
 use crate::reflect::map::ReflectMapIter;
 use crate::reflect::map::ReflectMapIterTrait;
 use crate::reflect::runtime_types::RuntimeType;
@@ -86,6 +86,27 @@ impl DynamicMap {
                 t => panic!("type cannot be hashmap key: {}", t),
             },
         }
+    }
+
+    pub fn compute_size(&self, field_number: u32) -> u32 {
+        self.reflect_iter()
+            .map(|(k, v)| {
+                let entry_len = crate::rt::tag_size(1) + k.to_box().compute_size() + crate::rt::tag_size(2) + v.to_box().compute_size();
+                crate::rt::tag_size(field_number) + crate::rt::compute_raw_varint32_size(entry_len) + entry_len
+            })
+            .sum()
+    }
+
+    pub fn write_to_with_cached_sizes(&self, os: &mut CodedOutputStream, field_number: u32) -> ProtobufResult<()> {
+        self.reflect_iter()
+            .try_for_each(|(k, v)| {
+                os.write_tag(field_number, WireType::WireTypeLengthDelimited)?;
+                let entry_len = crate::rt::tag_size(1) + k.to_box().compute_size() + crate::rt::tag_size(2) + v.to_box().compute_size();
+                os.write_raw_varint32(entry_len)?;
+
+                k.to_box().write_to_with_cached_sizes(os, 1)?;
+                v.to_box().write_to_with_cached_sizes(os, 2)
+            })
     }
 }
 

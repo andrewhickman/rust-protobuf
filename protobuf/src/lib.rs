@@ -4,8 +4,9 @@
 //! `protobuf-codegen`, `protobuf-codegen-pure` crates.
 //! See readme on the [project github page](https://github.com/stepancheg/rust-protobuf).
 
-#![deny(missing_docs)]
-#![deny(broken_intra_doc_links)]
+// #![deny(missing_docs)]
+// #![deny(broken_intra_doc_links)]
+#![cfg_attr(rustc_nightly, feature(specialization))]
 
 #[cfg(feature = "bytes")]
 extern crate bytes;

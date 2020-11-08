@@ -1,11 +1,10 @@
-use crate::reflect::message::message_ref::MessageRef;
+use crate::{CodedOutputStream, MessageDyn, ProtobufResult, reflect::{message::message_ref::MessageRef, types::ProtobufType}, wire_format};
 use crate::reflect::value::value_ref::ReflectValueMut;
 use crate::reflect::value::value_ref::ReflectValueRef;
 use crate::reflect::EnumDescriptor;
 use crate::reflect::EnumValueDescriptor;
 use crate::reflect::ProtobufValue;
 use crate::reflect::RuntimeTypeBox;
-use crate::MessageDyn;
 
 /// Owner value of any elementary type
 #[derive(Debug, Clone)]
@@ -150,6 +149,41 @@ impl ReflectValueBox {
     /// For `enum` `V` can be either `V: ProtobufEnum` or `V: ProtobufEnumOrUnknown<E>`.
     pub fn downcast<V: ProtobufValue>(self) -> Result<V, Self> {
         V::from_value_box(self)
+    }
+
+    pub fn compute_size(&self) -> u32 {
+        match self {
+            ReflectValueBox::U32(v) => crate::reflect::types::ProtobufTypeUint32::compute_size(v),
+            ReflectValueBox::U64(v) => crate::reflect::types::ProtobufTypeUint64::compute_size(v),
+            ReflectValueBox::I32(v) => crate::reflect::types::ProtobufTypeInt32::compute_size(v),
+            ReflectValueBox::I64(v) => crate::reflect::types::ProtobufTypeInt64::compute_size(v),
+            ReflectValueBox::F32(v) => crate::reflect::types::ProtobufTypeFloat::compute_size(v),
+            ReflectValueBox::F64(v) => crate::reflect::types::ProtobufTypeDouble::compute_size(v),
+            ReflectValueBox::Bool(v) => crate::reflect::types::ProtobufTypeBool::compute_size(v),
+            ReflectValueBox::String(ref v) => crate::reflect::types::ProtobufTypeString::compute_size_with_length_delimiter(v),
+            ReflectValueBox::Bytes(ref v) => crate::reflect::types::ProtobufTypeBytes::compute_size_with_length_delimiter(v),
+            ReflectValueBox::Enum(d, v) => crate::rt::compute_raw_varint32_size(*v as u32),
+            ReflectValueBox::Message(v) => v.compute_size_dyn(),
+        }
+    }
+
+    pub fn write_to_with_cached_sizes(&self, os: &mut CodedOutputStream, field_number: u32) -> ProtobufResult<()> {
+        match *self {
+            ReflectValueBox::U32(v) => os.write_uint32(field_number, v),
+            ReflectValueBox::U64(v) => os.write_uint64(field_number, v),
+            ReflectValueBox::I32(v) => os.write_int32(field_number, v),
+            ReflectValueBox::I64(v) => os.write_int64(field_number, v),
+            ReflectValueBox::F32(v) => os.write_float(field_number, v),
+            ReflectValueBox::F64(v) => os.write_double(field_number, v),
+            ReflectValueBox::Bool(v) => os.write_bool(field_number, v),
+            ReflectValueBox::String(ref v) => os.write_string(field_number, v),
+            ReflectValueBox::Bytes(ref v) => os.write_bytes(field_number, v),
+            ReflectValueBox::Enum(ref d, v) => os.write_enum(field_number, v),
+            ReflectValueBox::Message(ref v) => {
+                os.write_tag(field_number, wire_format::WireTypeLengthDelimited)?;
+                v.write_to_with_cached_sizes_dyn(os)
+            },
+        }
     }
 }
 

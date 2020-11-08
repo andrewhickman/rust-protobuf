@@ -49,6 +49,22 @@ impl DynamicFieldValue {
             DynamicFieldValue::Map(m) => m.clear(),
         }
     }
+
+    fn compute_size(&self, field_number: u32) -> u32 {
+        match self {
+            DynamicFieldValue::Singular(o) => o.compute_size(field_number),
+            DynamicFieldValue::Repeated(r) => r.compute_size(field_number),
+            DynamicFieldValue::Map(m) => m.compute_size(field_number),
+        }
+    }
+    
+    fn write_to_with_cached_sizes(&self, os: &mut CodedOutputStream, field_number: u32) -> ProtobufResult<()> {
+        match self {
+            DynamicFieldValue::Singular(o) => o.write_to_with_cached_sizes(os, field_number),
+            DynamicFieldValue::Repeated(r) => r.write_to_with_cached_sizes(os, field_number),
+            DynamicFieldValue::Map(m) => m.write_to_with_cached_sizes(os, field_number),
+        }
+    }
 }
 
 impl DynamicFieldValue {
@@ -64,7 +80,7 @@ impl DynamicFieldValue {
 #[derive(Debug, Clone)]
 pub(crate) struct DynamicMessage {
     pub(crate) descriptor: MessageDescriptor,
-    fields: Box<[DynamicFieldValue]>,
+    fields: Box<[(u32, DynamicFieldValue)]>,
     unknown_fields: UnknownFields,
     cached_size: CachedSize,
 }
@@ -84,7 +100,7 @@ impl DynamicMessage {
             self.fields = self
                 .descriptor
                 .fields()
-                .map(|f| DynamicFieldValue::default_for_field(&f))
+                .map(|f| (f.get_number(), DynamicFieldValue::default_for_field(&f)))
                 .collect();
         }
     }
@@ -94,7 +110,7 @@ impl DynamicMessage {
         if self.fields.is_empty() {
             ReflectFieldRef::default_for_field(field)
         } else {
-            self.fields[field.index].as_ref()
+            self.fields[field.index].1.as_ref()
         }
     }
 
@@ -104,7 +120,7 @@ impl DynamicMessage {
             return;
         }
 
-        self.fields[field.index].clear();
+        self.fields[field.index].1.clear();
     }
 
     fn clear_oneof_group_fields_except(&mut self, field: &FieldDescriptor) {
@@ -126,7 +142,7 @@ impl DynamicMessage {
         self.init_fields();
         self.clear_oneof_group_fields_except(field);
         // TODO: reset oneof group fields
-        match &mut self.fields[field.index] {
+        match &mut self.fields[field.index].1 {
             DynamicFieldValue::Singular(f) => f.mut_or_default(),
             _ => panic!("Not a singular field"),
         }
@@ -139,7 +155,7 @@ impl DynamicMessage {
         assert_eq!(self.descriptor, field.message_descriptor);
         self.init_fields();
         // TODO: reset oneof group fields
-        match &mut self.fields[field.index] {
+        match &mut self.fields[field.index].1 {
             DynamicFieldValue::Repeated(r) => ReflectRepeatedMut::new(r),
             _ => panic!("Not a repeated field: {}", field),
         }
@@ -149,7 +165,7 @@ impl DynamicMessage {
         assert_eq!(field.message_descriptor, self.descriptor);
         self.init_fields();
         // TODO: reset oneof group fields
-        match &mut self.fields[field.index] {
+        match &mut self.fields[field.index].1 {
             DynamicFieldValue::Map(m) => ReflectMapMut::new(m),
             _ => panic!("Not a map field: {}", field),
         }
@@ -159,7 +175,7 @@ impl DynamicMessage {
         assert_eq!(field.message_descriptor, self.descriptor);
         self.init_fields();
         // TODO: reset oneof group fields
-        match &mut self.fields[field.index] {
+        match &mut self.fields[field.index].1 {
             DynamicFieldValue::Singular(s) => s.set(value),
             _ => panic!("Not a singular field: {}", field),
         }
@@ -193,12 +209,22 @@ impl Message for DynamicMessage {
         unimplemented!()
     }
 
-    fn write_to_with_cached_sizes(&self, _os: &mut CodedOutputStream) -> ProtobufResult<()> {
-        unimplemented!()
+    fn write_to_with_cached_sizes(&self, os: &mut CodedOutputStream) -> ProtobufResult<()> {
+        for &(field_number, ref field) in self.fields.iter() {
+            field.write_to_with_cached_sizes(os, field_number)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        Ok(())
     }
 
     fn compute_size(&self) -> u32 {
-        unimplemented!()
+        let mut my_size = 0;
+        for &(field_number, ref field) in self.fields.iter() {
+            my_size += field.compute_size(field_number);
+        }
+        my_size += crate::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
     }
 
     fn get_cached_size(&self) -> u32 {

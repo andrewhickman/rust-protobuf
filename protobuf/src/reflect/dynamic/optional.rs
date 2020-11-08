@@ -1,4 +1,4 @@
-use crate::reflect::value::value_ref::ReflectValueMut;
+use crate::{CodedOutputStream, ProtobufResult, reflect::value::value_ref::ReflectValueMut};
 use crate::reflect::ReflectValueBox;
 use crate::reflect::ReflectValueRef;
 use crate::reflect::RuntimeTypeBox;
@@ -32,5 +32,21 @@ impl DynamicOptional {
     pub fn set(&mut self, value: ReflectValueBox) {
         assert_eq!(value.get_type(), self.elem);
         self.value = Some(value);
+    }
+
+    pub fn compute_size(&self, field_number: u32) -> u32 {
+        if let Some(value) = &self.value {
+            crate::rt::tag_size(field_number) + value.compute_size()
+        } else {
+            0
+        }
+    }
+
+    pub fn write_to_with_cached_sizes(&self, os: &mut CodedOutputStream, field_number: u32) -> ProtobufResult<()> {
+        if let Some(value) = &self.value {
+            value.write_to_with_cached_sizes(os, field_number)
+        } else {
+            Ok(())
+        }
     }
 }

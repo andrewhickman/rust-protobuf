@@ -1,4 +1,6 @@
 #![deny(broken_intra_doc_links)]
+extern crate proc_macro;
+extern crate protobuf;
 
 use std::collections::hash_map::HashMap;
 use std::fmt::Write as FmtWrite;

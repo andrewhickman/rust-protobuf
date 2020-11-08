@@ -1,4 +1,4 @@
-use crate::reflect::repeated::ReflectRepeated;
+use crate::{CodedOutputStream, ProtobufResult, reflect::repeated::ReflectRepeated, wire_format::WireType};
 use crate::reflect::repeated::ReflectRepeatedIter;
 use crate::reflect::ReflectValueBox;
 use crate::reflect::ReflectValueRef;
@@ -48,5 +48,17 @@ impl DynamicRepeated {
             elem,
             vec: Vec::new(),
         }
+    }
+    
+    pub fn compute_size(&self, field_number: u32) -> u32 { 
+        self.vec.iter().map(|v| {
+            crate::rt::tag_size(field_number) + v.compute_size()
+        }).sum()
+    }
+
+    pub fn write_to_with_cached_sizes(&self, os: &mut CodedOutputStream, field_number: u32) -> ProtobufResult<()> {
+        self.vec.iter().try_for_each(|v| {
+            v.write_to_with_cached_sizes(os, field_number)
+        })
     }
 }
