@@ -181,6 +181,7 @@ impl ReflectValueBox {
             ReflectValueBox::Enum(ref d, v) => os.write_enum(field_number, v),
             ReflectValueBox::Message(ref v) => {
                 os.write_tag(field_number, wire_format::WireTypeLengthDelimited)?;
+                os.write_raw_varint32(v.compute_size_dyn())?;
                 v.write_to_with_cached_sizes_dyn(os)
             },
         }
